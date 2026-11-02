@@ -1,11 +1,11 @@
 @echo off
 REM ===========================================================================
-REM  build.bat - rebuild the single-file game exe
+REM  build.bat - rebuild the single-file beta game exe
 REM
-REM  Usage:  build.bat "D:\path\to\asset_folder"
-REM          asset_folder = folder containing the mp3 / wav / chart txt files
+REM  Usage:  build.bat "D:\path\to\Project6\Project6"
+REM          that folder must contain:  charts\*.mp3  charts\*.txt  hit.wav
 REM
-REM  Result: ..\PixelBeats.exe  (x64, static CRT, all assets embedded)
+REM  Result: ..\PixelBeats-Beta.exe  (x64, static CRT, all assets embedded)
 REM  NOTE: keep this file ASCII-only, cmd.exe mis-parses non-ASCII bytes.
 REM ===========================================================================
 setlocal enableextensions
@@ -14,11 +14,11 @@ set "ASSET_SRC=%~1"
 
 if "%ASSET_SRC%"=="" (
     echo [ERROR] missing asset folder argument.
-    echo         usage: build.bat "D:\...\asset-folder"
+    echo         usage: build.bat "D:\...\Project6\Project6"
     exit /b 1
 )
-if not exist "%ASSET_SRC%" (
-    echo [ERROR] asset folder not found: %ASSET_SRC%
+if not exist "%ASSET_SRC%\charts" (
+    echo [ERROR] no "charts" sub-folder under: %ASSET_SRC%
     exit /b 1
 )
 
@@ -40,14 +40,12 @@ if errorlevel 1 (echo [ERROR] vcvars64 failed & exit /b 1)
 REM ---- stage the assets ----------------------------------------------------
 if not exist "%ROOT%build\assets" mkdir "%ROOT%build\assets"
 del /q "%ROOT%build\assets\*.*" >nul 2>&1
-copy /y "%ASSET_SRC%\*.mp3" "%ROOT%build\assets\" >nul 2>&1
-copy /y "%ASSET_SRC%\*.wav" "%ROOT%build\assets\" >nul 2>&1
-copy /y "%ASSET_SRC%\*_easy.txt" "%ROOT%build\assets\" >nul 2>&1
-copy /y "%ASSET_SRC%\*_normal.txt" "%ROOT%build\assets\" >nul 2>&1
-copy /y "%ASSET_SRC%\*_hard.txt" "%ROOT%build\assets\" >nul 2>&1
+copy /y "%ASSET_SRC%\charts\*.mp3" "%ROOT%build\assets\" >nul 2>&1
+copy /y "%ASSET_SRC%\charts\*.txt" "%ROOT%build\assets\" >nul 2>&1
+copy /y "%ASSET_SRC%\hit.wav"      "%ROOT%build\assets\" >nul 2>&1
 
 REM ---- generate assets.rc + assets_index.h ---------------------------------
-powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%gen_assets_rc.ps1" -AssetsDir "%ROOT%build\assets" -SrcDir "%ROOT%"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%gen_assets_rc.ps1" -AssetsDir "%ROOT%build\assets" -SrcDir "%~dp0."
 if errorlevel 1 (echo [ERROR] asset index generation failed & exit /b 1)
 
 REM ---- compile the resource script -----------------------------------------
@@ -60,9 +58,8 @@ REM ---- compile + link ------------------------------------------------------
 if not exist "%ROOT%build\obj" mkdir "%ROOT%build\obj"
 pushd "%ROOT%"
 cl /nologo /utf-8 /EHsc /O2 /MT /DNDEBUG /I "%ROOT%raylib\include" ^
-   /Fo:"%ROOT%build\obj\\" /Fd:"%ROOT%build\obj\\" /Fe:"%ROOT%..\PixelBeats.exe" ^
-   main.cpp audio.cpp chart.cpp effects.cpp game.cpp assets.cpp pe_resource.cpp ^
-   "%ROOT%build\assets.res" ^
+   /Fo:"%ROOT%build\obj\\" /Fd:"%ROOT%build\obj\\" /Fe:"%ROOT%..\PixelBeats-Beta.exe" ^
+   FileName.cpp assets.cpp pe_resource.cpp "%ROOT%build\assets.res" ^
    /link /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup "%ROOT%raylib\x64\raylib.lib" ^
    winmm.lib user32.lib gdi32.lib shell32.lib ole32.lib oleaut32.lib advapi32.lib comdlg32.lib opengl32.lib
 set "RC=%errorlevel%"
@@ -70,5 +67,5 @@ popd
 
 if not "%RC%"=="0" (echo [ERROR] build failed & exit /b 1)
 echo.
-echo [OK] built: %ROOT%..\PixelBeats.exe
+echo [OK] built: %ROOT%..\PixelBeats-Beta.exe
 exit /b 0

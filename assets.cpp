@@ -123,3 +123,16 @@ Wave LoadWaveAsset(const char* fileName) {
     // 3. 都没有：返回空波形（调用方会回退到程序化生成音效）
     return wave;
 }
+
+// 与 raylib 的 LoadSound 等价：加载波形 -> 转成 Sound -> 释放波形
+Sound LoadSoundAsset(const char* fileName) {
+    Sound sound;
+    memset(&sound, 0, sizeof(Sound));
+
+    Wave wave = LoadWaveAsset(fileName);
+    if (wave.frameCount == 0) return sound;
+
+    sound = LoadSoundFromWave(wave);
+    UnloadWave(wave);   // 数据已复制进声音缓冲，可以释放
+    return sound;
+}
