@@ -1,14 +1,22 @@
 # ============================================================================
 # gen_assets_rc.ps1 - Build the embedded-resource files from the assets dir.
 #   outputs:
-#     assets\assets.rc        - resource script (numeric ids, RCDATA)
-#     src\assets_index.h      - generated filename -> resource id table
+#     <AssetsDir>\assets.rc   - resource script (numeric ids, RCDATA)
+#     <SrcDir>\assets_index.h - generated filename -> resource id table
+#   Both files are generated in the SAME pass so the ids always agree.
 # Note: keep this file ASCII-only (PS 5.1 parser).
 # ============================================================================
 param(
     [string]$AssetsDir = (Join-Path $PSScriptRoot 'assets'),
-    [string]$SrcDir    = (Join-Path $PSScriptRoot 'src')
+    [string]$SrcDir    = $PSScriptRoot
 )
+
+# Sanitize: a trailing backslash or quote (from "%~dp0" style arguments)
+# would make later path joins produce an invalid path.
+$AssetsDir = $AssetsDir.TrimEnd('\', '"')
+$SrcDir    = $SrcDir.TrimEnd('\', '"')
+if (-not (Test-Path -LiteralPath $AssetsDir)) { Write-Error "assets dir not found: $AssetsDir"; exit 1 }
+if (-not (Test-Path -LiteralPath $SrcDir))    { Write-Error "src dir not found: $SrcDir"; exit 1 }
 
 $RcFile    = Join-Path $AssetsDir 'assets.rc'
 $IndexFile = Join-Path $SrcDir 'assets_index.h'
@@ -16,6 +24,8 @@ $IndexFile = Join-Path $SrcDir 'assets_index.h'
 $files = @(Get-ChildItem -LiteralPath $AssetsDir -File |
            Where-Object { $_.Extension -ne '.rc' } |
            Sort-Object Name)
+
+if ($files.Count -eq 0) { Write-Error "no asset files in $AssetsDir"; exit 1 }
 
 # ---- assets.rc -------------------------------------------------------------
 $sb = New-Object System.Text.StringBuilder
@@ -50,6 +60,17 @@ foreach ($f in $files) {
 [void]$hb.AppendLine('')
 [void]$hb.AppendLine(('static const int kEmbeddedAssetCount = {0};' -f $files.Count))
 [System.IO.File]::WriteAllText($IndexFile, $hb.ToString(), (New-Object System.Text.UTF8Encoding($true)))
+
+# ---- verify both files exist and agree (fail loudly instead of building stale)
+if (-not (Test-Path -LiteralPath $RcFile))    { Write-Error "failed to write $RcFile"; exit 1 }
+if (-not (Test-Path -LiteralPath $IndexFile)) { Write-Error "failed to write $IndexFile"; exit 1 }
+
+$rcIds = (Select-String -LiteralPath $RcFile -Pattern '^\d+ RCDATA ' -AllMatches).Count
+$hIds  = (Select-String -LiteralPath $IndexFile -Pattern '^\s+\{ ".*", \d+ \},$' -AllMatches).Count
+if ($rcIds -ne $hIds -or $rcIds -ne $files.Count) {
+    Write-Error ("resource id mismatch: assets={0} rc={1} index={2}" -f $files.Count, $rcIds, $hIds)
+    exit 1
+}
 
 $total = ($files | Measure-Object Length -Sum).Sum
 Write-Output ("WROTE {0} and {1} : {2} resources, {3:N1} MB" -f $RcFile, $IndexFile, $files.Count, ($total / 1MB))

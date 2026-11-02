@@ -23,3 +23,6 @@ Music LoadMusicAsset(const char* fileName);
 
 // 加载波形（音效）；磁盘文件优先，其次内嵌副本。失败时返回已清零的 Wave。
 Wave LoadWaveAsset(const char* fileName);
+
+// 加载音效（等价于 raylib 的 LoadSound，但支持内嵌资源）。
+Sound LoadSoundAsset(const char* fileName);
